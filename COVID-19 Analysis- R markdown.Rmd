@@ -1,0 +1,209 @@
+---
+title: "COVID-19 New Cases"
+author: "Time Series Analysis of The Effect of Increasing Number of COVID-19 Cases in Indonesia on The Movement of IHSG"
+date: "5/11/2021"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+
+Covid-19 a is world wide pandemic started in December 2019 and firstly reported from Wuhan, China. In Indonesia, Covid-19 started to spread in March 2020.Of course, this pandemic affect most all life aspects, including economic sector. Thisresearch focus on the impact of Covid-19 pandemic towards Indonesia economic condition. The economic parameter that will be considered in this research is Indonesia Stock Exchange (IDX)Composite.
+
+The Composite Stock Price Index (IHSG) is an index of allstockslisted on the Indonesia Stock Exchange, IDX.The stock price index data we use is taken from IHSG for July 2020 until April 2021 which contains 179 observations data. The IHSG data then will be compared to Indonesia's COVID-19 new cases. The analysis method used is time series analysis (Box-Jenkins method and heteroskedastic effect modeling) and visual analysis. In this section, the COVID19 new cases data will be analyzed.
+
+
+# Data Input and Descriptive Statistics
+```{r}
+# Indonesia's Covid-19 new cases
+library(readxl)
+library(tseries)
+library(lmtest)
+library(forecast)
+library(TSA)
+library(FinTS)
+
+# Input Data
+data <- read_xlsx("C:/Users/LENOVO/Downloads/DataIHSGCovid.xlsx", sheet="Covid")
+data
+indeks <- data$KasusBaru
+
+# Time Series data 
+indeksts<- ts(indeks)
+# Scatter Plot Time Series Data
+plot(indeksts, main = "Indonesia's COVID-19 new cases graph", ylab = "New Cases", xlab = "Days", type = 'o') + abline(h = mean(indeks), col = 'blue')
+
+# Descriptive statistics data
+summary(indeks)
+
+```
+
+# Data Modeling
+## Stationarity Test 
+
+To conduct a time series analysis, the data should stationary. Therefore, stationarity test is applied.
+```{r}
+# DATA MODELING
+# Stationarity Test
+# Plot ACF
+acf(indeksts, main = 'COVID-19 new cases ACF Graph', lag.max = 270)
+pacf(indeksts, main = 'COVID-19 new cases PACF Graph', lag.max = 270)
+# ADF(Augmented Dickey-Fuller) Test
+adf.test(indeksts)
+```
+The ACF Graph shows a taill-off graph. From the ADF Test, it is found that P-Value = 0.99 for COVID-19 data, so H0 is not rejected, meaning that the data is not stationary so differentiation is needed.
+
+
+## Differentiation
+
+As the data is not stationary, differentiation is conducted.
+```{r}
+# Differentiation non stationary model
+indekstsdiff = diff(indeksts) 
+plot(indekstsdiff, main = "1 Time Differentiation COVID-19 New Cases Graph", ylab = "Differentiation", xlab = "Weeks", type = 'o') + abline(h = mean(indekstsdiff), col = 'blue')
+
+# Plot ACF 1x Diferensiasi
+acf(indekstsdiff, main = '1 Time Differentiation COVID-19 New Cases ACF Graph', lag.max = 200)
+pacf(indekstsdiff, main = '1 Time Differentiation COVID-19 New Cases PACF Graph', lag.max = 200)
+# ADF(Augmented Dickey-Fuller) Test
+adf.test(indekstsdiff)
+```
+It is shown that The ACF and PACF plot is not a tail-off graph. ADF Test on differentiation data gives P-Value = 0.01 for COVID-19 data. As H0 is rejected, the data is now stationary.
+
+
+## Model Estimation
+
+Based on the ACF and PACF plot after a differentiation on the data. it can be seen that the ACF cut-off is in the lag 2 and 5, while the PACF cut-off is in the lag 3 and 5.Therefore, the possible models are ARIMA (3,1,0), ARIMA (0,1,2), ARIMA (5,1,0), ARIMA (0,1,5), ARIMA (3,1,2 ), ARIMA (3,1,5), ARIMA (5,1,2), ARIMA (5,1,5).
+```{r}
+# Manual Model Estimation
+# ACF Cut Off lag 2 and 5
+# PACF Cut off lag 3 and 5
+model_arima1 = arima(indeksts,order = c(3,1,0))
+summary(model_arima1)
+model_arima2 = arima(indeksts,order = c(0,1,2))
+summary(model_arima2)
+model_arima3 = arima(indeksts,order = c(5,1,0))
+summary(model_arima3)
+model_arima4 = arima(indeksts,order = c(0,1,5))
+summary(model_arima4)
+model_arima5 = arima(indeksts,order = c(3,1,2))
+summary(model_arima5)
+model_arima6 = arima(indeksts,order = c(3,1,5))
+summary(model_arima6)
+model_arima7 = arima(indeksts,order = c(5,1,2))
+summary(model_arima7)
+model_arima8 = arima(indeksts,order = c(5,1,5))
+summary(model_arima8)
+
+# Data Coeficient Significancy Test 
+coeftest(model_arima8)
+```
+The model chosen is the best model with the smallest AIC value, namely **ARIMA(5,1,5)**.
+
+
+## Diagnostic Test
+
+Further identification of the model is done in diagnostic test.
+```{r}
+# Diagnostic Test
+qqnorm(residuals(model_arima8))
+qqline(residuals(model_arima8))
+hist(residuals(model_arima8))
+ks.test(residuals(model_arima8),"pnorm")
+Box.test(residuals(model_arima8),lag = 270, type="Ljung-Box")
+checkresiduals(model_arima8)
+
+# Uji efek heteroskedastik
+resid<-residuals(model_arima8)
+ArchTest(resid)
+```
+For the COVID-19 data, the histogram shows the model residuals are not close enough to the normal distribution and from the ACF plot it can be seen that nothing has crossed the significance limit, means that the errors are independent of each other's lags. 
+
+The results of the L-jung Box test are also supportive because it was found that P-Value = 0.07387> α = 0.05, so H0 was not rejected, which means that the model is quite suitable for the data. 
+
+But because the residuals plot looks strange and the variance seems getting bigger, then ARCH LM-test was performed to test the presence of heteroscedastic effect. Obtained PValue = 2.109e-05< α = 0.05 then H0 is rejected, which means that the residuals contain **heteroscedastic effect.**
+
+
+## Heteroscedastic Model Identification
+
+As the ARCH-LM test shown that the residuals of the model contain heteroscedastic effect, Heteroscedastic model identification is conducted. 
+
+```{r}
+# Squared residual sequence definition
+nt <- residuals(model_arima8)
+nt2 <- nt^2
+
+# Stationary test for the squared residual sequence
+adf.test(nt2)
+```
+The residual sequence is defined as nt and the square as nt2, then a stationary test is performed for nt2. Based on the ADF Test, it was found that P-Value = 0.01 < α = 0.05, then H0 is rejected, which means that the residual quadratic sequence data is stationary.
+
+```{r}
+# ACF dan PACF squared residual
+acf(nt2, lag.max = 50)
+pacf(nt2, lag.max = 50)
+
+# ARMA Modeling
+# ACF cut-off lag 2,4,6
+# PACF cut-off lag 2,4
+# ARMA(max(p,q),p)
+modelnt1 = arima(nt2,order = c(2,0,2))
+summary(modelnt1)
+modelnt2 = arima(nt2,order = c(2,0,4))
+summary(modelnt2)
+modelnt3 = arima(nt2,order = c(4,0,4))
+summary(modelnt3)
+modelnt4 = arima(nt2,order = c(2,0,6))
+summary(modelnt4)
+modelnt5 = arima(nt2,order = c(4,0,6))
+summary(modelnt5)
+# Best Model :
+#GARCH (2,2)
+```
+For the model identification, the ACF cut-off plot is found in lag 2, lag 4, and lag 6, while the PACF cut-off is in lag 2 and lag 4. Refering to the graph, ACF and PACF also have cut-offs on other lags, but they are not significant or can be considered too far. Time series variance was found following several GARCH (p, q) models with the residual squares following the ARMA model (max (p, q), p). 
+
+It is found that the model with the smallest AIC is ARMA (2,2). By estimating the parameters, the model **GARCH (2,2)** is found, but ⍵ and the parameter for lag 1 are not significant.
+
+```{r}
+# Signifikansi dari Koefisien Data Residual
+coeftest(modelnt1)
+# Menguji apakah masih ada efek heteroskedastik pada residual model nt2
+ArchTest(residuals(modelnt1))
+# Tidak ada efek heteroskedastik
+```
+Furthermore, an ARCH-test was carried out to test whether there was still a heteroscedastic effect on the residuals of the nt2 model. Because the P-Value = 0.9994 > α = 0.05 then H0 is not rejected, which means that the GARCH model residual (2,2) does not contain heteroscedastic effects.
+
+```{r}
+# Diagnostic Test of Squared residuals sequence's Model 
+qqnorm(residuals(modelnt1))
+qqline(residuals(modelnt1))
+hist(residuals(modelnt1))
+ks.test(residuals(modelnt1),"pnorm")
+Box.test(residuals(modelnt1),lag = 100, type="Ljung-Box")
+checkresiduals(modelnt1)
+```
+
+# Forecasting 
+
+After the models has been predicted. Forecasting is conducted for the data. 
+```{r}
+#Data and Model comparison
+data_pred <- indeksts - residuals(model_arima8)
+ts.plot(data_pred,indeksts, xlab = 'Waktu', ylab = 'Penambahan Kasus Covid-19', 
+        col = c('red', 'blue'), main = 'Perbandingan Data Kasus COVID-19 Asli dengan Model')
+
+# Forecasting
+model_arima8 = stats:: arima(indeksts,order = c(5,1,5))
+(prediksi = forecast(model_arima8, h = 10))
+autoplot(prediksi, main="Forecasting Penambahan Kasus Covid-19",ylab="Penambahan Kasus Covid",xlab="Hari")
+```
+
+# Conclusion
+
+(see the IHSG data analysis)
+
+1. The best model for the IHSG data is ARIMA(2,1,0) and for the COVID-19 data is ARIMA(5,1,5) with heteroscedastic effect brti GARCH (2,2).
+
+2. By comparing both the data plot, we can see that the increasing number of Covid-19 cases in Indonesia had an impact on IHSG movement. At the 40th day until the 60th day, when the number of cases increased, the IHSG went down (Around August-September 2020). But after that, IHSG increased greatly though the number of cases also increased. Based on this, we can conclude that for certain moment, Covid-19 affects on Indonesia economy. But, after September 2020, Indonesia's economy is able to recover quickly and grow firmly regardless of the increasing number of Covid-19 cases.
+
+From this conclusion, we encourage potential investors to take the opportunity and keep calm though the number of Covid-19 cases is still high. Because the models show us that Indonesia's economy could stand firm in Covid-19 pandemic period.
